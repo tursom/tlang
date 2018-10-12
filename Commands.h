@@ -1,3 +1,5 @@
+#include <utility>
+
 //
 // Created by tursom on 18-10-11.
 //
@@ -9,7 +11,7 @@
 #include <string>
 #include <map>
 #include <functional>
-
+#include <memory>
 
 enum Type {
 	Null,
@@ -17,62 +19,115 @@ enum Type {
 	Double,
 	String,
 	Bool,
-	CString,
-	Stack
+//	CString,
+			Stack
+};
+
+struct Stack;
+
+union Val {
+	Val();
+	
+	~Val();
+	
+	void *pVoid = nullptr;
+	long i;
+	double d;
+	std::shared_ptr<std::string> str;
+	bool b;
+	std::shared_ptr<struct Stack> stack;
 };
 
 struct SmartPointer {
 	SmartPointer() = default;
 	
-	SmartPointer(void *value, Type type1) : value(value), type(type1), count(1) {}
+	explicit SmartPointer(std::nullptr_t value) : value(std::make_shared<Val>()), type(Null) {
+		this->value->pVoid = value;
+	}
 	
-	~SmartPointer();
+	explicit SmartPointer(void *value) : value(std::make_shared<Val>()), type(Null) {
+		this->value->pVoid = value;
+	}
 	
-	void *value = nullptr;
-	int count = 1;
+	explicit SmartPointer(long value) : value(std::make_shared<Val>()), type(Int) {
+		this->value->i = value;
+	}
+	
+	explicit SmartPointer(double value) : value(std::make_shared<Val>()), type(Double) {
+		this->value->d = value;
+	}
+	
+	explicit SmartPointer(const std::string &value) : value(std::make_shared<Val>()), type(String) {
+		this->value->str = std::make_shared<std::string>(value);
+	}
+	
+	explicit SmartPointer(bool value) : value(std::make_shared<Val>()), type(Bool) {
+		this->value->b = value;
+	}
+	
+	explicit SmartPointer(const char *value) : value(std::make_shared<Val>()), type(String) {
+		this->value->str = std::make_shared<std::string>(value);
+	}
+	
+	explicit SmartPointer(std::shared_ptr<struct Stack> value)
+			: value(std::make_shared<Val>()), type(Stack) {
+		this->value->stack = std::move(value);
+	}
+	
+	std::shared_ptr<Val> value;
 	Type type{Null};
 };
 
 struct Value {
-	Value() : pointer(new SmartPointer(nullptr, Null)) {}
+	Value() : pointer(dft) {}
 	
-	Value(void *value, Type type1) : pointer(new SmartPointer(value, type1)) {}
+	explicit Value(long value) : pointer(std::make_shared<SmartPointer>(value)) {}
 	
-	~Value() {
-		if (pointer != nullptr) {
-			--pointer->count;
-			if (pointer->count == 0)delete pointer;
-		}
-	}
+	explicit Value(double value) : pointer(std::make_shared<SmartPointer>(value)) {}
+	
+	explicit Value(const std::string &value) : pointer(std::make_shared<SmartPointer>(value)) {}
+	
+	explicit Value(bool value) : pointer(std::make_shared<SmartPointer>(value)) {}
+	
+	explicit Value(char *value) : pointer(std::make_shared<SmartPointer>(value)) {}
+	
+	explicit Value(void *value) : pointer(std::make_shared<SmartPointer>(value)) {}
+	
+	Value(std::shared_ptr<struct Stack> shared_ptr) : pointer(std::make_shared<SmartPointer>(shared_ptr)) {}
 	
 	Value &operator=(const Value value1) {
-		if (pointer != nullptr) {
-			--pointer->count;
-			if (pointer->count == 0)delete pointer;
-		}
 		pointer = value1.pointer;
-		if (pointer != nullptr)++pointer->count;
 		return *this;
 	}
 	
-	void *&getValue() {
+	std::shared_ptr<Val> &getValue() {
 		return pointer->value;
 	}
 	
-	
-	void *getValue() const {
+	std::shared_ptr<Val> getValue() const {
 		return pointer->value;
 	}
 	
-	Type &getType() const {
+	Type &getType() {
 		return pointer->type;
 	}
 	
-	SmartPointer *pointer;
+	Type getType() const {
+		return pointer->type;
+	}
+	
+	static std::shared_ptr<SmartPointer> dft;
+	std::shared_ptr<SmartPointer> pointer;
 };
 
 struct Stack {
-	Value operator[](int index);
+	Value &operator[](int index) {
+		return value[top - index - 1];
+	}
+	
+	Value operator[](int index) const {
+		return value[top - index - 1];
+	}
 	
 	void push(Value &value1) {
 		value[top++] = value1;
@@ -80,7 +135,7 @@ struct Stack {
 	
 	Value *pop() {
 		if (top <= 0)return nullptr;
-		return value - --top;
+		return value + --top;
 	}
 	
 	Value *peek() {
@@ -93,12 +148,9 @@ struct Stack {
 };
 
 struct Environment {
-	Environment() { // NOLINT(modernize-use-equals-default)
-		env["@"] = Value((void *) &stack, Stack);
+	Environment() : stack(std::make_shared<struct Stack>()) { // NOLINT(modernize-use-equals-default)
+		env["@"] = Value(stack);
 	}
-	
-	struct Stack stack;
-	std::map<std::string, Value> env;
 	
 	std::map<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char>>, Value, std::less<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char>>>, std::allocator<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char>>, Value>>>::const_iterator
 	find(const std::string &key) const {
@@ -113,12 +165,12 @@ struct Environment {
 	Value &operator[](const std::string &key) {
 		return env[key];
 	}
+	
+	std::shared_ptr<struct Stack> stack;
+	std::map<std::string, Value> env;
 };
 
-typedef std::map<std::string, std::function<void(Environment &env,
-                                                 char *command,
-                                                 size_t brk[128],
-                                                 size_t brkIndex)>> FuncMap;
+typedef std::map<std::string, std::function<void(Environment &env, char *brk[128])>> FuncMap;
 
 extern FuncMap funcMap;
 
