@@ -3,62 +3,153 @@
 //
 
 #include "CommandReader.h"
+#include <string>
+#include <cstring>
+#include <iostream>
+
+using namespace std;
 
 const VoidChar voidChar;
+std::vector<std::shared_ptr<Command>> funcBody;
 
-void runLine(Environment &env, char *command) {
-	if (command != nullptr) {
-		for (int j = 0; true; ++j) {
-			if (voidChar.voidChar[command[j]])continue;
-			else if (command[j] == '#' || command[j] == 0)return;
-			else break;
+string toString(long value) {
+	static char buffer[20];
+	sprintf(buffer, "%li", value);
+	return buffer;
+}
+
+void runCommand(Environment &env, const char *command, char *args[128]) {
+	while (voidChar.voidChar[*command]);
+	for (; *command != 0; ++command) {
+		if (voidChar.voidChar[*command])continue;
+		else if (*command == 0) return;
+		else break;
+	}
+	if (definingUserFunc() != nullptr) {
+		if (strcmp(command, "end") == 0) {
+			userFuncDefineEnd(funcBody);
+		} else {
+			Command cmd(command, args);
+			funcBody.push_back(make_shared<Command>(cmd));
 		}
-		char *brk[128];
-		size_t brkIndex = 0;
-		if (!voidChar.voidChar[command[0]]) {
-			brk[brkIndex] = command;
-			brkIndex++;
-		}
-		for (size_t i = 0; command[i] != 0; ++i) {
-			if (command[i] == '\\' && command[i + 1] == '\n') {
-				command[i] = 0;
-				command[i + 1] = ' ';
-			} else {
-				if (voidChar.voidChar[command[i]]) {
-					if (!voidChar.voidChar[command[i + 1]] && command[i + 1] != '\\'
-					    && command[i + 2] != '\n' && command[i + 1] != 0) {
-						brk[brkIndex] = command + i + 1;
-						brkIndex++;
+	} else {
+		auto i = funcMap.find(string(command));
+		
+		if (i != funcMap.end()) {
+			try {
+				i->second(env, args);
+			} catch (CommandException &e) {
+				if (e.message != nullptr) {
+					printf("%s: %s\nargs: ", command, e.message->c_str());
+					while (*args != nullptr) {
+						printf("%s ", *args);
+						++args;
 					}
-					command[i] = 0;
+					printf("\n");
 				}
 			}
-		}
-		brk[brkIndex] = nullptr;
-		auto i = funcMap.find(brk[0]);
-		if (i != funcMap.end())
-			try {
-				i->second(env, brk + 1);
-			} catch (CommandException &e) {
-				if (e.message != nullptr)
-					printf("%s: %s\n", brk[0], e.message->c_str());
+		} else {
+			auto func = userFunc.find(string(command));
+			if (func != userFunc.end()) {
+				Value value;
+				for (int j = 0; args[j] != nullptr; ++j) {
+					switch (*(args[j])) {
+						case '@': {
+							char *arg = args[j] + 2;
+							while (*arg != '=' && *++arg != 0);
+							if (*arg == '=')*arg++ = 0;
+							getValue(arg, env, value);
+							env[args[j] + 1] = value;
+						}
+							break;
+						case '#':
+							getValue(args[j], env, value);
+							env.stack->push(value);
+							break;
+						default:
+							env[toString(j + 1)] = Value(args[j]);
+							break;
+					}
+				}
+				for (const auto &cmmd:func->second) {
+					auto cmd = *cmmd;
+					runCommand(env, cmd.command, cmd.args);
+				}
+			} else {
+				printf("%s: 无法运行命令\nargs: ", command);
+				while (*args != nullptr) {
+					printf("%s ", *args);
+					++args;
+				}
+				printf("\n");
 			}
+		}
 	}
 }
 
-void run(Environment &env, char *command) {
-	char *brk[10240];
-	size_t brkIndex = 1;
-	brk[0] = command;
-	for (size_t i = 1; command[i] != 0; ++i) {
-		if (command[i] == ';') {
-			command[i] = 0;
-			brk[brkIndex] = command + i + 1;
-			++brkIndex;
+void runLine(Environment &env, char *command) {
+	static char *brk[128];
+	static char *cmd;
+	static char *nxtCmd;
+	//TODO
+	for (cmd = command; cmd != nullptr && *cmd != 0; cmd = nxtCmd) {
+		size_t brkIndex = 0;
+		if (!voidChar.voidChar[cmd[0]]) {
+			brk[brkIndex++] = cmd;
+		}
+		for (nxtCmd = cmd; *nxtCmd != 0; ++nxtCmd) {
+			if (*nxtCmd < 0) {
+				nxtCmd += 2;
+				continue;
+			}
+			if (*nxtCmd == '\\' && nxtCmd[+1] == '\n') {
+				*nxtCmd = 0;
+				*++nxtCmd = ' ';
+			} else if (voidChar.voidChar[*nxtCmd]) {
+				if (*nxtCmd == '\n') {
+					*nxtCmd = 0;
+					++nxtCmd;
+					break;
+				} else if (!voidChar.voidChar[nxtCmd[1]] &&
+				           !(nxtCmd[1] == '\\' && nxtCmd[2] == '\n')
+				           && nxtCmd[1] != 0) {
+					brk[brkIndex] = nxtCmd + 1;
+					brkIndex++;
+				}
+				*nxtCmd = 0;
+			}
+		}
+		brk[brkIndex] = nullptr;
+		for (; true; ++cmd) {
+			if (voidChar.voidChar[*cmd])continue;
+			else break;
+		}
+		if (brk[0] == nullptr || *brk[0] == '#' || *brk[0] == 0)continue;
+		runCommand(env, *brk, brk + 1);
+	}
+}
+
+void run(Environment &env, char *commandLines) {
+	char *singleCommand = commandLines;
+	for (; *commandLines != 0; ++commandLines) {
+		if (*commandLines == ';') {
+			*commandLines = 0;
+			runLine(env, singleCommand);
+			singleCommand = commandLines + 1;
 		}
 	}
-	brk[brkIndex] = nullptr;
-	for (int j = 0; j < brkIndex; ++j) {
-		runLine(env, brk[j]);
+	runLine(env, singleCommand);
+}
+
+
+void run(Environment &env) {
+	string command;
+	while (command != "exit") {
+		printf("%s>>>", definingUserFunc());
+		getline(cin, command);
+		char *cmd = (char *) malloc(command.size() + 1);
+		strcpy(cmd, command.c_str());
+		run(env, cmd);
+		free(cmd);
 	}
 }

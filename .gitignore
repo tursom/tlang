@@ -41,3 +41,4 @@ gen### C++ template
 *.app
 
 cmake-build-debug
+CMakeCache.txt

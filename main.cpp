@@ -3,6 +3,7 @@
 #include "Commands.h"
 #include "CommandReader.h"
 #include <iostream>
+#include <sys/stat.h>
 
 using namespace std;
 
@@ -12,14 +13,17 @@ long getCurrentTime() {
 	return tv.tv_sec * 1000 + tv.tv_usec / 1000;
 }
 
-int main() {
+int main(int argc, char *argv[]) {
+	char *file[2] = {nullptr, nullptr};
 	timeval t1{}, t2{};
 	Environment env;
-	char command[] = "@ push 1 2\\\n   ;@ pop a; @ pop b; set c add $a $b; echo $c;";
 	gettimeofday(&t1, nullptr);
-	run(env, command);
+	for (int i = 1; i < argc; ++i) {
+		file[0] = argv[i];
+		runCommand(env, "import", file);
+	}
 	gettimeofday(&t2, nullptr);
-	printf("%li\n", (t2.tv_sec - t1.tv_sec) * 1000 * 1000 + t2.tv_usec - t1.tv_usec);
-	cout << sizeof(Val) << endl;
+	printf("improt using %li microsecons\n", (t2.tv_sec - t1.tv_sec) * 1000 * 1000 + t2.tv_usec - t1.tv_usec);
+	run(env);
 	return 0;
 }
