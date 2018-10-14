@@ -86,6 +86,8 @@ struct SmartPointer {
 		this->value->stack = std::move(value);
 	}
 	
+	~SmartPointer();
+	
 	std::shared_ptr<Val> value;
 	Type type{Null};
 };
@@ -196,13 +198,23 @@ public:
 	
 	explicit CommandException(const std::string &message) : message(new std::string(message)) {}
 	
-	explicit CommandException(const char *message) : message(new std::string(message)) {}
+	explicit CommandException(const std::string &message, const std::string &where)
+			: message(new std::string(message)),
+			  where(new std::string(where)) {}
+	
+	explicit CommandException(const char *message, const char *where = nullptr) {
+		if (message != nullptr)this->message = new std::string(message);
+		if (where != nullptr)this->where = new std::string(where);
+	}
 	
 	~CommandException() override {
 		delete message;
+		delete where;
 	}
 	
 	std::string *message = nullptr;
+	
+	std::string *where = nullptr;
 };
 
 void getValue(char *str, const Environment &env, Value &value);

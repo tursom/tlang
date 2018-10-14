@@ -28,6 +28,7 @@ void runCommand(Environment &env, const char *command, char *args[128]) {
 	if (definingUserFunc() != nullptr) {
 		if (strcmp(command, "end") == 0) {
 			userFuncDefineEnd(funcBody);
+			funcBody = std::vector<std::shared_ptr<Command>>();
 		} else {
 			Command cmd(command, args);
 			funcBody.push_back(make_shared<Command>(cmd));
@@ -40,12 +41,11 @@ void runCommand(Environment &env, const char *command, char *args[128]) {
 				i->second(env, args);
 			} catch (CommandException &e) {
 				if (e.message != nullptr) {
-					printf("%s: %s\nargs: ", command, e.message->c_str());
-					while (*args != nullptr) {
-						printf("%s ", *args);
-						++args;
+					if (e.where != nullptr) {
+						printf("\033[31m%s: %s\nwhere: %s\n\033[m", command, e.message->c_str(), e.where->c_str());
+					} else {
+						printf("\033[31m%s: %s\n\033[m", command, e.message->c_str());
 					}
-					printf("\n");
 				}
 			}
 		} else {
@@ -76,12 +76,7 @@ void runCommand(Environment &env, const char *command, char *args[128]) {
 					runCommand(env, cmd.command, cmd.args);
 				}
 			} else {
-				printf("%s: 无法运行命令\nargs: ", command);
-				while (*args != nullptr) {
-					printf("%s ", *args);
-					++args;
-				}
-				printf("\n");
+				printf("\033[31m%s: 无法运行命令\n\033[m", command);
 			}
 		}
 	}
@@ -91,7 +86,6 @@ void runLine(Environment &env, char *command) {
 	static char *brk[128];
 	static char *cmd;
 	static char *nxtCmd;
-	//TODO
 	for (cmd = command; cmd != nullptr && *cmd != 0; cmd = nxtCmd) {
 		size_t brkIndex = 0;
 		if (!voidChar.voidChar[cmd[0]]) {

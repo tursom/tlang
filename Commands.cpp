@@ -8,6 +8,7 @@
 #include <sys/stat.h>
 #include <iostream>
 #include <cstring>
+#include <cmath>
 #include "Commands.h"
 #include "CommandReader.h"
 
@@ -66,7 +67,7 @@ void toCString(const Value &value, const char **res, char *buffer) {
 			*res = buffer;
 			break;
 		case Double:
-			sprintf(buffer, "%f", value.getValue()->d);
+			sprintf(buffer, "%e", value.getValue()->d);
 			*res = buffer;
 			break;
 		case String:
@@ -192,7 +193,7 @@ void getFloatOrNull(char *valueName, Environment &env, struct Double &ans) {
 		case String:
 			ans.value = strtod(value.getValue()->str.c_str(), &str);
 			if (ans.value == 0.0 && value.getValue()->str == str)
-				throw CommandException("无法将变量转换到Double");
+				throw CommandException("无法将变量转换到Double", value.getValue()->str.c_str());
 			break;
 		case Bool:
 			ans.value = value.getValue()->b;
@@ -205,6 +206,37 @@ void getFloatOrNull(char *valueName, Environment &env, struct Double &ans) {
 		default:
 			break;
 	}
+}
+
+double getFloat(char *valueName, Environment &env) {
+	static Value value;
+	static char *str;
+	static double ans = 0.0;
+	getValue(valueName, env, value);
+	switch (value.getType()) {
+		case Int:
+			ans = value.getValue()->i;
+			break;
+		case Double:
+			ans = value.getValue()->d;
+			break;
+		case String:
+			ans = strtod(value.getValue()->str.c_str(), &str);
+			if (ans == 0.0 && value.getValue()->str == str)
+				throw CommandException("无法将变量转换到Double", value.getValue()->str.c_str());
+			break;
+		case Bool:
+			ans = value.getValue()->b;
+			break;
+//		case CString:
+//			ans.value = strtod((char *) value.getValue(), &str);
+//			if (ans.value == 0.0 && strlen((char *) value.getValue()) == strlen(str))
+//				throw CommandException("无法将变量转换到Double");
+//			break;
+		default:
+			break;
+	}
+	return ans;
 }
 
 void getIntOrNull(char *valueName, Environment &env, struct Int &ans) {
@@ -234,11 +266,12 @@ void getIntOrNull(char *valueName, Environment &env, struct Int &ans) {
 							positive = 1;
 							break;
 						default:
-							throw CommandException("无法将变量转换到Int");
+							throw CommandException("无法将变量转换到Int", value.getValue()->str.c_str());
 						
 					}
 				} else {
-					if (index == 1 && positive == 1)throw CommandException("无法将变量转换到Int");
+					if (index == 1 && positive == 1)
+						throw CommandException("无法将变量转换到Int", value.getValue()->str.c_str());
 					break;
 				}
 				++index;
@@ -284,7 +317,7 @@ void getIntOrNull(char *valueName, Environment &env, struct Int &ans) {
 }
 
 Value add(Environment &env, char *brk[]) {
-	if (brk[0] == nullptr || brk[1] == nullptr)throw CommandException("操作数不足");
+	if (brk[0] == nullptr || brk[1] == nullptr)throw CommandException("操作数不足", *brk);
 	static struct Double d1{}, d2{};
 	getFloatOrNull(brk[0], env, d1);
 	getFloatOrNull(brk[1], env, d2);
@@ -292,7 +325,7 @@ Value add(Environment &env, char *brk[]) {
 }
 
 Value intAdd(Environment &env, char *brk[]) {
-	if (brk[0] == nullptr || brk[1] == nullptr)throw CommandException("操作数不足");
+	if (brk[0] == nullptr || brk[1] == nullptr)throw CommandException("操作数不足", *brk);
 	static struct Int i1{}, i2{};
 	getIntOrNull(brk[0], env, i1);
 	getIntOrNull(brk[1], env, i2);
@@ -300,7 +333,7 @@ Value intAdd(Environment &env, char *brk[]) {
 }
 
 Value sub(Environment &env, char *brk[]) {
-	if (brk[0] == nullptr || brk[1] == nullptr)throw CommandException("操作数不足");
+	if (brk[0] == nullptr || brk[1] == nullptr)throw CommandException("操作数不足", *brk);
 	static struct Double d1{}, d2{};
 	getFloatOrNull(brk[0], env, d1);
 	getFloatOrNull(brk[1], env, d2);
@@ -308,7 +341,7 @@ Value sub(Environment &env, char *brk[]) {
 }
 
 Value intSub(Environment &env, char *brk[]) {
-	if (brk[0] == nullptr || brk[1] == nullptr)throw CommandException("操作数不足");
+	if (brk[0] == nullptr || brk[1] == nullptr)throw CommandException("操作数不足", *brk);
 	static struct Int i1{}, i2{};
 	getIntOrNull(brk[0], env, i1);
 	getIntOrNull(brk[1], env, i2);
@@ -316,7 +349,7 @@ Value intSub(Environment &env, char *brk[]) {
 }
 
 Value mul(Environment &env, char *brk[]) {
-	if (brk[0] == nullptr || brk[1] == nullptr)throw CommandException("操作数不足");
+	if (brk[0] == nullptr || brk[1] == nullptr)throw CommandException("操作数不足", *brk);
 	static struct Double d1{}, d2{};
 	getFloatOrNull(brk[0], env, d1);
 	getFloatOrNull(brk[1], env, d2);
@@ -324,7 +357,7 @@ Value mul(Environment &env, char *brk[]) {
 }
 
 Value intMul(Environment &env, char *brk[]) {
-	if (brk[0] == nullptr || brk[1] == nullptr)throw CommandException("操作数不足");
+	if (brk[0] == nullptr || brk[1] == nullptr)throw CommandException("操作数不足", *brk);
 	static struct Int i1{}, i2{};
 	getIntOrNull(brk[0], env, i1);
 	getIntOrNull(brk[1], env, i2);
@@ -332,20 +365,20 @@ Value intMul(Environment &env, char *brk[]) {
 }
 
 Value ddiv(Environment &env, char *brk[]) {
-	if (brk[0] == nullptr || brk[1] == nullptr)throw CommandException("操作数不足");
+	if (brk[0] == nullptr || brk[1] == nullptr)throw CommandException("操作数不足", *brk);
 	static struct Double d1{}, d2{};
 	getFloatOrNull(brk[0], env, d1);
 	getFloatOrNull(brk[1], env, d2);
-	if (d2.value == 0.0) throw CommandException("被除数为0");
+	if (d2.value == 0.0) throw CommandException("被除数为0", *brk);
 	return Value(d1.value / d2.value);
 }
 
 Value intDiv(Environment &env, char *brk[]) {
-	if (brk[0] == nullptr || brk[1] == nullptr)throw CommandException("操作数不足");
+	if (brk[0] == nullptr || brk[1] == nullptr)throw CommandException("操作数不足", *brk);
 	static struct Int i1{}, i2{};
 	getIntOrNull(brk[0], env, i1);
 	getIntOrNull(brk[1], env, i2);
-	if (i2.value == 0) throw CommandException("被除数为0");
+	if (i2.value == 0) throw CommandException("被除数为0", *brk);
 	return Value(i1.value / i2.value);
 }
 
@@ -359,6 +392,11 @@ Value getCurrentMicroTime(Environment &env, char *brk[]) {
 	struct timeval tv{};
 	gettimeofday(&tv, nullptr);
 	return Value(tv.tv_sec * 1000 * 1000 + tv.tv_usec);
+}
+
+Value _sqrt(Environment &env, char *brk[]) {
+	if (brk[0] == nullptr)throw CommandException("操作数不足", *brk);
+	return Value(sqrt(getFloat(brk[0], env)));
 }
 
 CalcMap calcMap{
@@ -384,6 +422,7 @@ CalcMap calcMap{
 		{"systemCurrentMicroTime", getCurrentMicroTime},
 		{"SystemCurrentMicroTime", getCurrentMicroTime},
 		{"SCMT",                   getCurrentMicroTime},
+		{"sqrt",                   _sqrt},
 };
 
 void stack_push(Environment &env, char *brk[], struct Stack &stack) {
@@ -479,7 +518,7 @@ void set(Environment &env, char *brk[]) {
 }
 
 void stack(Environment &env, char *brk[]) {
-	Value target, *ans;
+	Value target;
 	string str;
 	getValue(brk[0], env, target);
 	toString(target, str);
@@ -492,7 +531,7 @@ void stack(Environment &env, char *brk[]) {
 			throw CommandException("未定义操作");
 		}
 	} else {
-		throw CommandException("无法找到栈");
+		throw CommandException("无法找到栈", brk[0]);
 	}
 }
 
@@ -512,7 +551,7 @@ void import(Environment &env, char *brk[]) {
 	for (; *brk != nullptr; ++brk) {
 		auto file = fopen(*brk, "r");
 		if (file != nullptr) {
-			if (::stat(*brk, &stat1) < 0) throw CommandException("无法打开文件" + string(*brk));
+			if (::stat(*brk, &stat1) < 0) throw CommandException("无法打开文件", *brk);
 			auto filesize = static_cast<size_t>(stat1.st_size);
 			buffer = new char[filesize + 1];
 			fread(buffer, 1, filesize, file);
@@ -522,7 +561,7 @@ void import(Environment &env, char *brk[]) {
 			delete[] buffer;
 			fclose(file);
 		} else {
-			throw CommandException("无法打开文件" + string(*brk));
+			throw CommandException("无法打开文件", *brk);
 		}
 	}
 }
@@ -626,6 +665,70 @@ void call(Environment &env, char *brk[]) {
 	}
 }
 
+void help(Environment &env, char *brk[]) {
+	static const char helpStr[] =
+			"欢迎使用Tursom Language (tlang) 系统\n"
+			"直接输入命令以调用命令\n"
+			"亦可以直接调用用户定义函数\n"
+			"系统函数有:"
+			" echo"
+			" set"
+			" stack"
+			" @"
+			" import"
+			" exit"
+			" sleep"
+			" usleep"
+			" func"
+			" call\n"
+			"输入 help (函数名) 获得帮助";
+	static const map<const string, const char *> helpMap = {
+			{"set", "给变量赋值\n"
+			        "用法: set 变量名 操作数或操作符 (操作符参数)\n"
+			        "操作符有"
+			        " add"
+			        " +"
+			        " intAdd"
+			        " i+"
+			        " sub"
+			        " -"
+			        " intSub"
+			        " i-"
+			        " mul"
+			        " *"
+			        " intMul"
+			        " i*"
+			        " mul"
+			        " *"
+			        " intDiv"
+			        " i/"
+			        " systemCurrentTime"
+			        " SystemCurrentTime"
+			        " SCT"
+			        " systemCurrentMicroTime"
+			        " SystemCurrentMicroTime"
+			        " SCMT"
+			        " sqrt\n"
+			        "所有非操作符的操作均视为操作数并转义\n"
+			        "转义规则为:\n"
+			        "以$开头的操作数视为对变量取值,变量名为$之后的字符串(不含$)\n"
+			        "以@开头的操作数视为储存有变量名的变量,其值为其中存储的变量名所对应的变量的值\n"
+			        "以\"开头的操作数不进行任何转义,只去掉开头的\"\n"
+			        "以'开头的操作数将\\s转义为空格,\\\\转义为\\\n"
+			        "以上转义如果失败将会直接返回原始字符串\n"
+			        "输入 help set (操作符) 获取更多帮助"},
+	};
+	if (*brk == nullptr) {
+		printf("%s\n", helpStr);
+	} else {
+		auto str = helpMap.find(*brk);
+		if (str != helpMap.end())
+			printf("%s\n", str->second);
+		else
+			throw CommandException("无法找到帮助", *brk);
+	}
+}
+
 FuncMap funcMap{
 		{"echo",   echo},
 		{"set",    ::set},
@@ -637,6 +740,7 @@ FuncMap funcMap{
 		{"usleep", usleep},
 		{"func",   func},
 		{"call",   call},
+		{"help",   help},
 };
 
 
@@ -648,4 +752,23 @@ Val::Val() {
 Val::Val(const char *str) : str(str) {}
 
 Val::~Val() {
+}
+
+SmartPointer::~SmartPointer() {
+	switch (type) {
+		case Null:
+			break;
+		case Int:
+			break;
+		case Double:
+			break;
+		case String:
+			value->str.~basic_string();
+			break;
+		case Bool:
+			break;
+		case Stack:
+			value->stack.~shared_ptr();
+			break;
+	}
 }
