@@ -21,5 +21,26 @@ func square $1:Double $ret:Double
 	echo $ret
 	end
 
-echo package test.tl import completelyhelp
+func test10
+	set _ i+ $1 $2
+	set _ i+ $1 $2
+	set _ i+ $1 $2
+	set _ i+ $1 $2
+	set _ i+ $1 $2
+	set _ i+ $1 $2
+	set _ i+ $1 $2
+	set _ i+ $1 $2
+	set _ i+ $1 $2
+	set _ i+ $1 $2
+	end
+
+func test
+	set t1 SCMT
+	call test10 $1 $2
+	set t2 SCMT
+	set t i- $t2 $t1
+	echo test using $t microseconds
+	end
+
+echo package test.tl import completely
 echo 使用"help"命令获取帮助

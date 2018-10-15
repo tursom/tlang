@@ -6,7 +6,6 @@
 
 #include <sys/time.h>
 #include <sys/stat.h>
-#include <iostream>
 #include <cstring>
 #include <cmath>
 #include "Commands.h"
@@ -14,7 +13,7 @@
 
 using namespace std;
 
-std::shared_ptr<SmartPointer>Value::dft = make_shared<SmartPointer>(nullptr);
+//std::shared_ptr<Value>Value::dft = make_shared<Value>(nullptr);
 
 std::map<std::string, std::vector<std::shared_ptr<Command>>> userFunc;
 
@@ -52,211 +51,48 @@ typedef std::map<
 				Environment &env,
 				char *brk[])> > CalcMap;
 
-/**
- *
- * @param value
- * @param res
- * @param buffer lager than 20 without stack
- * @param bufferSize
- */
-void toCString(const Value &value, const char **res, char *buffer) {
-	static char True[] = "true", False[] = "false", space[] = "";
+double Environment::getFloat(char *valueName) const {
+	char *str;
+	double ret = 0.0;
+	Value value = getValue(valueName);
 	switch (value.getType()) {
-		case Int:
-			sprintf(buffer, "%li", value.getValue()->i);
-			*res = buffer;
+		case Value::Int:
+			return value.getInt();
 			break;
-		case Double:
-			sprintf(buffer, "%e", value.getValue()->d);
-			*res = buffer;
+		case Value::Double:
+			return value.getDouble();
 			break;
-		case String:
-			*res = value.getValue()->str.c_str();
+		case Value::String:
+			ret = strtod(value.getStr().c_str(), &str);
+			if (ret == 0.0 && value.getStr() == str)
+				throw CommandException("无法将变量转换到Double", value.getStr());
+			return ret;
+		case Value::Bool:
+			return value.getBool();
 			break;
-		case Bool:
-			*res = value.getValue()->b ? True : False;
-			break;
-//		case CString:
-//			*res = value.getValue()->str.c_str();
-//			break;
 		default:
-			*res = space;
-			break;
-		case Null:
-			break;
-		case Stack:
+			return 0.0;
 			break;
 	}
 }
 
-void toString(const Value &value, string &res) {
-	static char buffer[20];
-	static char True[] = "true", False[] = "false", space[] = "";
+long Environment::getInt(char *valueName) const {
+	Value value = getValue(valueName);
 	switch (value.getType()) {
-		case Int:
-			sprintf(buffer, "%li", value.getValue()->i);
-			res = buffer;
+		case Value::Int:
+			return value.getInt();
 			break;
-		case Double:
-			sprintf(buffer, "%f", value.getValue()->d);
-			res = buffer;
+		case Value::Double:
+			return static_cast<int>(value.getDouble());
 			break;
-		case String:
-			res = value.getValue()->str;
-			break;
-		case Bool: {
-			res = value.getValue()->b ? True : False;
-		}
-			break;
-//		case CString:
-//			res = value.getValue()->str;
-//			break;
-		default:
-			res = space;
-			break;
-	}
-}
-
-void getValue(char *str, const Environment &env, Value &value) {
-	static char buffer[20];
-	switch (str[0]) {
-		case '$': {
-			auto res = env.find(str + 1);
-			if (res != env.end()) {
-				value = res->second;
-			} else {
-				value = Value(str);
-			}
-		}
-			break;
-		case '@': {
-			auto res1 = env.find(str + 1);
-			if (res1 != env.end()) {
-				const char *key = nullptr;
-				toCString(res1->second, &key, buffer);
-				auto res2 = env.find(key);
-				if (res2 != env.end()) {
-					value = res2->second;
-				} else {
-					value = Value(str);
-				}
-			} else {
-				value = Value(str);
-			}
-		}
-			break;
-		case '"':
-			value = Value(str + 1);
-			break;
-		case '\'': {
-			int strIndex = 0;
-			int index;
-			for (index = 0; str[index] != 0; ++index) {
-				str[strIndex] = str[index];
-				if (str[index] == '\\') {
-					switch (str[index + 1]) {
-						case 's':
-							str[strIndex] = ' ';
-							++index;
-							break;
-						case '\\':
-							str[strIndex] = '\\';
-							++index;
-							break;
-						default:
-							break;
-					}
-				}
-				++strIndex;
-			}
-			str[strIndex] = str[index];
-		}
-			value = Value(str);
-			break;
-		default:
-			value = Value(str);
-			break;
-	}
-}
-
-void getFloatOrNull(char *valueName, Environment &env, struct Double &ans) {
-	static Value value;
-	static char *str;
-	getValue(valueName, env, value);
-	switch (value.getType()) {
-		case Int:
-			ans.value = value.getValue()->i;
-			break;
-		case Double:
-			ans.value = value.getValue()->d;
-			break;
-		case String:
-			ans.value = strtod(value.getValue()->str.c_str(), &str);
-			if (ans.value == 0.0 && value.getValue()->str == str)
-				throw CommandException("无法将变量转换到Double", value.getValue()->str.c_str());
-			break;
-		case Bool:
-			ans.value = value.getValue()->b;
-			break;
-//		case CString:
-//			ans.value = strtod((char *) value.getValue(), &str);
-//			if (ans.value == 0.0 && strlen((char *) value.getValue()) == strlen(str))
-//				throw CommandException("无法将变量转换到Double");
-//			break;
-		default:
-			break;
-	}
-}
-
-double getFloat(char *valueName, Environment &env) {
-	static Value value;
-	static char *str;
-	static double ans = 0.0;
-	getValue(valueName, env, value);
-	switch (value.getType()) {
-		case Int:
-			ans = value.getValue()->i;
-			break;
-		case Double:
-			ans = value.getValue()->d;
-			break;
-		case String:
-			ans = strtod(value.getValue()->str.c_str(), &str);
-			if (ans == 0.0 && value.getValue()->str == str)
-				throw CommandException("无法将变量转换到Double", value.getValue()->str.c_str());
-			break;
-		case Bool:
-			ans = value.getValue()->b;
-			break;
-//		case CString:
-//			ans.value = strtod((char *) value.getValue(), &str);
-//			if (ans.value == 0.0 && strlen((char *) value.getValue()) == strlen(str))
-//				throw CommandException("无法将变量转换到Double");
-//			break;
-		default:
-			break;
-	}
-	return ans;
-}
-
-void getIntOrNull(char *valueName, Environment &env, struct Int &ans) {
-	static Value value;
-	getValue(valueName, env, value);
-	switch (value.getType()) {
-		case Int:
-			ans.value = value.getValue()->i;
-			break;
-		case Double:
-			ans.value = static_cast<int>(value.getValue()->d);
-			break;
-		case String: {
-			ans.value = 0;
+		case Value::String: {
+			long ret = 0;
 			char positive = 2;
 			int index = 0;
-			for (auto c: value.getValue()->str) {
+			for (auto c: value.getStr()) {
 				if (c >= '0' && c <= '9') {
-					ans.value *= 10;
-					ans.value += c - '0';
+					ret *= 10;
+					ret += c - '0';
 				} else if (index == 0) {
 					switch (c) {
 						case '-':
@@ -266,32 +102,47 @@ void getIntOrNull(char *valueName, Environment &env, struct Int &ans) {
 							positive = 1;
 							break;
 						default:
-							throw CommandException("无法将变量转换到Int", value.getValue()->str.c_str());
+							throw CommandException("无法将变量转换到Int", value.getStr());
 						
 					}
 				} else {
 					if (index == 1 && positive == 1)
-						throw CommandException("无法将变量转换到Int", value.getValue()->str.c_str());
+						throw CommandException("无法将变量转换到Int", value.getStr());
 					break;
 				}
 				++index;
 			}
-			if (positive == 0)ans.value = -ans.value;
+			if (positive == 0)ret = -ret;
+			return ret;
 		}
 			break;
-		case Bool:
-			ans.value = value.getValue()->b;
+		case Value::Bool:
+			return value.getBool();
 			break;
-//		case CString: {
+		default:
+			return 0l;
+			break;
+	}
+}
+
+//void getIntOrNull(char *valueName, Environment &env, struct Int &ans) {
+//	Value value = env.getValue(valueName);
+//	switch (value.getType()) {
+//		case Value::Int:
+//			ans.value = value.getInt();
+//			break;
+//		case Value::Double:
+//			ans.value = static_cast<int>(value.getDouble());
+//			break;
+//		case Value::String: {
 //			ans.value = 0;
-//			char *string1 = (char *) value.getValue();
-//			char c;
 //			char positive = 2;
-//			for (int i = 0; (c = string1[i]) != 0; i++) {
+//			int index = 0;
+//			for (auto c: value.getStr()) {
 //				if (c >= '0' && c <= '9') {
 //					ans.value *= 10;
 //					ans.value += c - '0';
-//				} else if (i == 0) {
+//				} else if (index == 0) {
 //					switch (c) {
 //						case '-':
 //							positive = 0;
@@ -300,86 +151,83 @@ void getIntOrNull(char *valueName, Environment &env, struct Int &ans) {
 //							positive = 1;
 //							break;
 //						default:
-//							throw CommandException("无法将变量转换到Int");
+//							throw CommandException("无法将变量转换到Int", value.getStr());
 //
 //					}
 //				} else {
-//					if (i == 1 && positive == 1)throw CommandException("无法将变量转换到Int");
+//					if (index == 1 && positive == 1)
+//						throw CommandException("无法将变量转换到Int", value.getStr());
 //					break;
 //				}
+//				++index;
 //			}
 //			if (positive == 0)ans.value = -ans.value;
 //		}
 //			break;
-		default:
-			break;
-	}
-}
+//		case Value::Bool:
+//			ans.value = value.getBool();
+//			break;
+//		default:
+//			break;
+//	}
+//}
 
 Value add(Environment &env, char *brk[]) {
 	if (brk[0] == nullptr || brk[1] == nullptr)throw CommandException("操作数不足", *brk);
-	static struct Double d1{}, d2{};
-	getFloatOrNull(brk[0], env, d1);
-	getFloatOrNull(brk[1], env, d2);
-	return Value(d1.value + d2.value);
+	double d1 = env.getFloat(brk[0]);
+	double d2 = env.getFloat(brk[1]);
+	return Value(d1 + d2);
 }
 
 Value intAdd(Environment &env, char *brk[]) {
 	if (brk[0] == nullptr || brk[1] == nullptr)throw CommandException("操作数不足", *brk);
-	static struct Int i1{}, i2{};
-	getIntOrNull(brk[0], env, i1);
-	getIntOrNull(brk[1], env, i2);
-	return Value(i1.value + i2.value);
+	long i1 = env.getInt(brk[0]);
+	long i2 = env.getInt(brk[1]);
+	return Value(i1 + i2);
 }
 
 Value sub(Environment &env, char *brk[]) {
 	if (brk[0] == nullptr || brk[1] == nullptr)throw CommandException("操作数不足", *brk);
-	static struct Double d1{}, d2{};
-	getFloatOrNull(brk[0], env, d1);
-	getFloatOrNull(brk[1], env, d2);
-	return Value(d1.value - d2.value);
+	double d1 = env.getFloat(brk[0]);
+	double d2 = env.getFloat(brk[1]);
+	return Value(d1 - d2);
 }
 
 Value intSub(Environment &env, char *brk[]) {
 	if (brk[0] == nullptr || brk[1] == nullptr)throw CommandException("操作数不足", *brk);
-	static struct Int i1{}, i2{};
-	getIntOrNull(brk[0], env, i1);
-	getIntOrNull(brk[1], env, i2);
-	return Value(i1.value - i2.value);
+	long i1 = env.getInt(brk[0]);
+	long i2 = env.getInt(brk[1]);
+	return Value(i1 - i2);
 }
 
 Value mul(Environment &env, char *brk[]) {
 	if (brk[0] == nullptr || brk[1] == nullptr)throw CommandException("操作数不足", *brk);
-	static struct Double d1{}, d2{};
-	getFloatOrNull(brk[0], env, d1);
-	getFloatOrNull(brk[1], env, d2);
-	return Value(d1.value * d2.value);
+	double d1 = env.getFloat(brk[0]);
+	double d2 = env.getFloat(brk[1]);
+	return Value(d1 * d2);
 }
 
 Value intMul(Environment &env, char *brk[]) {
 	if (brk[0] == nullptr || brk[1] == nullptr)throw CommandException("操作数不足", *brk);
-	static struct Int i1{}, i2{};
-	getIntOrNull(brk[0], env, i1);
-	getIntOrNull(brk[1], env, i2);
-	return Value(i1.value * i2.value);
+	long i1 = env.getInt(brk[0]);
+	long i2 = env.getInt(brk[1]);
+	return Value(i1 * i2);
 }
 
 Value ddiv(Environment &env, char *brk[]) {
 	if (brk[0] == nullptr || brk[1] == nullptr)throw CommandException("操作数不足", *brk);
-	static struct Double d1{}, d2{};
-	getFloatOrNull(brk[0], env, d1);
-	getFloatOrNull(brk[1], env, d2);
-	if (d2.value == 0.0) throw CommandException("被除数为0", *brk);
-	return Value(d1.value / d2.value);
+	double d1 = env.getFloat(brk[0]);
+	double d2 = env.getFloat(brk[1]);
+	if (d2 == 0.0) throw CommandException("被除数为0", *brk);
+	return Value(d1 / d2);
 }
 
 Value intDiv(Environment &env, char *brk[]) {
 	if (brk[0] == nullptr || brk[1] == nullptr)throw CommandException("操作数不足", *brk);
-	static struct Int i1{}, i2{};
-	getIntOrNull(brk[0], env, i1);
-	getIntOrNull(brk[1], env, i2);
-	if (i2.value == 0) throw CommandException("被除数为0", *brk);
-	return Value(i1.value / i2.value);
+	long i1 = env.getInt(brk[0]);
+	long i2 = env.getInt(brk[1]);
+	if (i2 == 0) throw CommandException("被除数为0", *brk);
+	return Value(i1 / i2);
 }
 
 Value getCurrentTime(Environment &env, char *brk[]) {
@@ -396,7 +244,7 @@ Value getCurrentMicroTime(Environment &env, char *brk[]) {
 
 Value _sqrt(Environment &env, char *brk[]) {
 	if (brk[0] == nullptr)throw CommandException("操作数不足", *brk);
-	return Value(sqrt(getFloat(brk[0], env)));
+	return Value(sqrt(env.getFloat(brk[0])));
 }
 
 CalcMap calcMap{
@@ -426,33 +274,31 @@ CalcMap calcMap{
 };
 
 void stack_push(Environment &env, char *brk[], struct Stack &stack) {
-	if (brk[0] == nullptr)throw CommandException("操作数不足");
+	if (brk[0] == nullptr)throw CommandException("操作数不足", "push");
 	for (int i = 0; brk[i] != nullptr; ++i) {
-		Value value;
-		getValue(brk[i], env, value);
+		Value value = env.getValue(brk[i]);
 		stack.push(value);
 	}
 }
 
 void stack_pop(Environment &env, char *brk[], struct Stack &stack) {
-	if (brk[0] == nullptr)throw CommandException("操作数不足");
-	Value target, *ans;
+	if (brk[0] == nullptr)throw CommandException("操作数不足", "pop");
+	Value target = env.getValue(brk[0]), *ans;
 	string str;
-	getValue(brk[0], env, target);
-	toString(target, str);
+	str = target.toString();
 	ans = stack.pop();
 	if (ans != nullptr)
 		env[str] = *ans;
 }
 
 void stack_peek(Environment &env, char *brk[], struct Stack &stack) {
-	if (brk[0] == nullptr)throw CommandException("操作数不足");
+	if (brk[0] == nullptr)throw CommandException("操作数不足", "peek");
 	static char buffer[20];
 	Value target, *ans;
 	string str;
 	for (int i = 0; brk[i] != nullptr; ++i) {
-		getValue(brk[0], env, target);
-		toString(target, str);
+		target = env.getValue(brk[0]);
+		str = target.toString();
 		ans = stack.peek();
 		if (ans != nullptr)
 			env[str] = *ans;
@@ -472,22 +318,18 @@ StackFuncMap stackFuncMap{
 };
 
 void echo(Environment &env, char *brk[]) {
-	static char buffer[20];
-	static const char *str = nullptr;
 	Value value;
 	for (size_t index = 0; brk[index] != nullptr; index++) {
-		getValue(brk[index], env, value);
-		if (value.getType() != Stack) {
-			toCString(value, &str, buffer);
-			printf("%s ", str);
+		value = env.getValue(brk[index]);
+		if (value.getType() != Value::Stack) {
+			printf("%s ", value.toCString());
 		} else {
-			auto stack = *value.getValue()->stack;
+			auto stack = value.getStack();
 			printf("[ ");
-			for (int i = 0; i < stack.top; ++i) {
-				toCString(stack.value[i], &str, buffer);
-				printf("%s ", str);
+			for (int i = 0; i < stack.size(); ++i) {
+				printf("%s ", stack[i].toCString());
 			}
-			printf("]");
+			printf("] ");
 		}
 	}
 	printf("\n");
@@ -506,13 +348,10 @@ void set(Environment &env, char *brk[]) {
 		auto func = calcMap.find(arg0);
 		if (func != calcMap.end()) {
 			Value res = func->second(env, brk + 2);
-			if (res.getType() != Null && res.getValue() != nullptr) {
-				env[target] = res;
-			}
+			env[target] = res;
 		} else {
-			getValue(arg0, env, value);
-			toCString(value, &str, buffer);
-			env[target] = Value(str);
+			value = env.getValue(arg0);
+			env[target] = value;
 		}
 	}
 }
@@ -520,18 +359,19 @@ void set(Environment &env, char *brk[]) {
 void stack(Environment &env, char *brk[]) {
 	Value target;
 	string str;
-	getValue(brk[0], env, target);
-	toString(target, str);
-	auto stack = env.find(str);
-	if (stack != env.end() && stack->second.getType() == Stack) {
+	target = env.getValue(brk[0]);
+	str = target.toString();
+	auto stackPair = env.find(str);
+	if (stackPair != env.end() && stackPair->second.getType() == Value::Stack) {
 		auto func = stackFuncMap.find(brk[0]);
 		if (func != stackFuncMap.end()) {
-			func->second(env, brk + 1, *stack->second.getValue()->stack);
+			auto stack = stackPair->second;
+			func->second(env, brk + 1, stack.getStack());
 		} else {
-			throw CommandException("未定义操作");
+			throw CommandException("未定义操作", brk[1]);
 		}
 	} else {
-		throw CommandException("无法找到栈", brk[0]);
+		throw CommandException("无法找到栈", *brk);
 	}
 }
 
@@ -541,7 +381,7 @@ void stdStack(Environment &env, char *brk[]) {
 	if (func != stackFuncMap.end()) {
 		func->second(env, brk + 1, *env.stack);
 	} else {
-		throw CommandException("未定义操作");
+		throw CommandException("未定义操作", *brk);
 	}
 }
 
@@ -556,7 +396,6 @@ void import(Environment &env, char *brk[]) {
 			buffer = new char[filesize + 1];
 			fread(buffer, 1, filesize, file);
 			buffer[filesize] = 0;
-//			cout << "file size:" << filesize + 1 << "str len:" << strlen(buffer) << " " << buffer << endl;
 			run(env, buffer);
 			delete[] buffer;
 			fclose(file);
@@ -570,10 +409,9 @@ void exitProgram(Environment &env, char *brk[]) {
 	if (brk[0] == nullptr)
 		::exit(0);
 	else {
-		struct Int i{};
 		try {
-			getIntOrNull(*brk, env, i);
-			exit(static_cast<int>(i.value));
+			long i = env.getInt(*brk);
+			exit(static_cast<int>(i));
 		} catch (CommandException &e) {
 			::exit(0);
 		}
@@ -584,12 +422,11 @@ void sleepThread(Environment &env, char *brk[]) {
 	if (brk[0] == nullptr)
 		return;
 	else {
-		struct Int i{};
 		try {
-			getIntOrNull(*brk, env, i);
+			long i = env.getInt(*brk);
 			timeval tval{};
-			tval.tv_sec = i.value / 1000;
-			tval.tv_usec = (i.value * 1000) % 1000000;
+			tval.tv_sec = i / 1000;
+			tval.tv_usec = (i * 1000) % 1000000;
 			select(0, nullptr, nullptr, nullptr, &tval);
 		} catch (CommandException &e) {
 			::exit(0);
@@ -601,12 +438,11 @@ void usleep(Environment &env, char *brk[]) {
 	if (brk[0] == nullptr)
 		return;
 	else {
-		struct Int i{};
 		try {
-			getIntOrNull(*brk, env, i);
+			long i = env.getInt(*brk);
 			timeval tval{};
-			tval.tv_sec = i.value / 1000000;
-			tval.tv_usec = i.value % 1000000;
+			tval.tv_sec = i / 1000000;
+			tval.tv_usec = i % 1000000;
 			select(0, nullptr, nullptr, nullptr, &tval);
 		} catch (CommandException &e) {
 			::exit(0);
@@ -619,8 +455,8 @@ void func(Environment &env, char *brk[]) {
 	if (*brk == nullptr)throw CommandException("参数不足");
 	Value value;
 	string str;
-	getValue(*brk, env, value);
-	toString(value, str);
+	value = env.getValue(*brk);
+	str = value.toString();
 	setDefiningUserFunc(str.c_str());
 }
 
@@ -628,8 +464,8 @@ void call(Environment &env, char *brk[]) {
 	if (*brk == nullptr)throw CommandException("参数不足");
 	Value value;
 	string str;
-	getValue(*brk, env, value);
-	toString(value, str);
+	value = env.getValue(*brk);
+	str = value.toString();
 	auto func = userFunc.find(str);
 	if (func != userFunc.end()) {
 		Environment newEnv(env);
@@ -639,20 +475,19 @@ void call(Environment &env, char *brk[]) {
 					char *arg = brk[j] + 2;
 					while (*arg != '=' && *++arg != 0);
 					if (*arg == '=')*arg++ = 0;
-					getValue(arg, env, value);
+					value = env.getValue(arg);
 					newEnv[brk[j] + 1] = value;
 				}
 					break;
 				case '$':
-					getValue(brk[j], env, value);
-					newEnv[brk[j] + 1] = value;
+					newEnv[brk[j] + 1] = env.getValue(brk[j]);
 					break;
 				case '#':
-					getValue(brk[j], env, value);
+					value = env.getValue(brk[j]);
 					newEnv.stack->push(value);
 					break;
 				default:
-					toString(Value((long) j), str);
+					str = Value((long) j).toString();
 					newEnv[str] = Value(brk[j]);
 					break;
 			}
@@ -662,6 +497,7 @@ void call(Environment &env, char *brk[]) {
 			runCommand(newEnv, cmd.command, cmd.args);
 		}
 	} else {
+		throw CommandException("无法找到函数", *brk);
 	}
 }
 
@@ -744,17 +580,178 @@ FuncMap funcMap{
 };
 
 
-Val::Val() {
+Value::ValueUnion::ValueUnion() {
 	pVoid = nullptr;
 }
 
-
-Val::Val(const char *str) : str(str) {}
-
-Val::~Val() {
+Value::ValueUnion::~ValueUnion() {
 }
 
-SmartPointer::~SmartPointer() {
+
+Value &Value::operator=(const Value &value1) = default;
+
+std::string Value::toString() const {
+	return value->toString();
+}
+
+const char *Value::toCString() const {
+	return value->toCString();
+}
+
+const std::string &Value::ValueClass::toString() const {
+	if (*strFlag)return *str;
+	static char buffer[20];
+	static char True[] = "true", False[] = "false", space[] = "";
+	switch (getType()) {
+		case Value::Int:
+			sprintf(buffer, "%li", getInt());
+			*str = buffer;
+			break;
+		case Value::Double:
+			sprintf(buffer, "%f", getDouble());
+			*str = buffer;
+			break;
+		case Value::String:
+			*str = getStr();
+			break;
+		case Value::Bool:
+			*str = getBool() ? True : False;
+			break;
+		default:
+			*str = space;
+			break;
+	}
+	*strFlag = true;
+	return *str;
+}
+
+const char *Value::ValueClass::toCString() const {
+	return toString().c_str();
+}
+
+Value Environment::getValue(char *str) const {
+	static char buffer[20];
+	switch (str[0]) {
+		case '$': {
+			auto res = env.find(str + 1);
+			if (res != env.end()) {
+				return res->second;
+			} else {
+				return Value(str);
+			}
+		}
+			break;
+		case '@': {
+			auto res1 = env.find(str + 1);
+			if (res1 != env.end()) {
+				auto res2 = env.find(res1->second.toString());
+				if (res2 != env.end()) {
+					return res2->second;
+				} else {
+					return Value(str);
+				}
+			} else {
+				return Value(str);
+			}
+		}
+			break;
+		case '"':
+			return Value(str + 1);
+			break;
+		case '\'': {
+			int strIndex = 0;
+			int index;
+			for (index = 1; str[index] != 0; ++index) {
+				str[strIndex] = str[index];
+				if (str[index] == '\\') {
+					switch (str[index + 1]) {
+						case 's':
+							str[strIndex] = ' ';
+							++index;
+							break;
+						case '\\':
+							str[strIndex] = '\\';
+							++index;
+							break;
+						default:
+							break;
+					}
+				}
+				++strIndex;
+			}
+			str[strIndex] = str[index];
+		}
+			return Value(str);
+			break;
+		default:
+			return Value(str);
+			break;
+	}
+}
+
+
+Value Environment::getValue(const std::string &valueName) const {
+	static char buffer[20];
+	switch (valueName[0]) {
+		case '$': {
+			auto res = env.find(valueName.substr(1));
+			if (res != env.end()) {
+				return res->second;
+			} else {
+				return Value(valueName);
+			}
+		}
+			break;
+		case '@': {
+			auto res1 = env.find(valueName.substr(1));
+			if (res1 != env.end()) {
+				auto res2 = env.find(res1->second.toString());
+				if (res2 != env.end()) {
+					return res2->second;
+				} else {
+					return Value(valueName);
+				}
+			} else {
+				return Value(valueName);
+			}
+		}
+		case '"':
+			return Value(valueName.substr(1));
+		case '\'': {
+			int strIndex = 0;
+			int index;
+			char *str = new char[valueName.size() + 1];
+			strcpy(str, valueName.c_str());
+			for (index = 1; str[index] != 0; ++index) {
+				str[strIndex] = str[index];
+				if (str[index] == '\\') {
+					switch (str[index + 1]) {
+						case 's':
+							str[strIndex] = ' ';
+							++index;
+							break;
+						case '\\':
+							str[strIndex] = '\\';
+							++index;
+							break;
+						default:
+							break;
+					}
+				}
+				++strIndex;
+			}
+			str[strIndex] = str[index];
+			auto ret = Value(str);
+			delete[] str;
+			return ret;
+		}
+		default:
+			return Value(valueName);
+	}
+}
+
+
+Value::ValueClass::~ValueClass() {
 	switch (type) {
 		case Null:
 			break;
@@ -763,12 +760,202 @@ SmartPointer::~SmartPointer() {
 		case Double:
 			break;
 		case String:
-			value->str.~basic_string();
+			value.str.~basic_string();
 			break;
 		case Bool:
 			break;
 		case Stack:
-			value->stack.~shared_ptr();
+			value.stack.~shared_ptr();
 			break;
 	}
+	delete str;
+	delete strFlag;
+}
+
+struct Stack &Value::ValueClass::getStack() {
+	if (type == Stack) {
+		*strFlag = false;
+		return *value.stack;
+	} else throw CommandException("类型转换错误", "Stack");
+}
+
+void *Value::ValueClass::getP() const {
+	if (type == Null)return value.pVoid;
+	else throw CommandException("");
+}
+
+long Value::ValueClass::getInt() const {
+	if (type == Int)return value.i;
+	else throw CommandException("类型转换错误", "Int");
+}
+
+double Value::ValueClass::getDouble() const {
+	if (type == Double)return value.d;
+	else throw CommandException("类型转换错误", "Double");
+}
+
+const std::string &Value::ValueClass::getStr() const {
+	if (type == String)return value.str;
+	else throw CommandException("类型转换错误", "String");
+}
+
+bool Value::ValueClass::getBool() const {
+	if (type == Bool)return value.b;
+	else throw CommandException("类型转换错误", "String");
+}
+
+const struct Stack &Value::ValueClass::getStack() const {
+	if (type == Stack)return *value.stack;
+	else throw CommandException("类型转换错误", "Stack");
+}
+
+Value::Type Value::ValueClass::getType() const {
+	return type;
+}
+
+Value::ValueClass::ValueClass() = default;
+
+Value::ValueClass::ValueClass(std::nullptr_t value) : value(), type(Null) {}
+
+Value::ValueClass::ValueClass(void *value) : value(value), type(Null) {}
+
+Value::ValueClass::ValueClass(long value) : value(value), type(Int) {}
+
+Value::ValueClass::ValueClass(double value) : value(value), type(Double) {}
+
+Value::ValueClass::ValueClass(const std::string &value) : value(value), type(String) {}
+
+Value::ValueClass::ValueClass(bool value) : value(value), type(Bool) {}
+
+Value::ValueClass::ValueClass(const char *value) : value(value), type(String) {}
+
+Value::ValueClass::ValueClass(const std::shared_ptr<struct Stack> &value) : value(value), type(Stack) {}
+
+Value &Stack::operator[](int index) {
+	return value[top - index - 1];
+}
+
+Value Stack::operator[](int index) const {
+	return value[top - index - 1];
+}
+
+void Stack::push(Value &value1) {
+	value[top++] = value1;
+}
+
+Value *Stack::pop() {
+	if (top <= 0)return nullptr;
+	return value + --top;
+}
+
+Value *Stack::peek() {
+	if (top < 0)return nullptr;
+	return value + top;
+}
+
+size_t Stack::size() {
+	return top;
+}
+
+Environment::Environment() : stack(std::make_shared<struct Stack>()) { // NOLINT(modernize-use-equals-default)
+	env["@"] = Value(stack);
+}
+
+Environment::Environment(const Environment &env) : stack(env.stack) { // NOLINT(modernize-use-equals-default)
+	this->env["@"] = Value(stack);
+}
+
+std::map<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char>>, Value, std::less<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char>>>, std::allocator<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char>>, Value>>>::const_iterator
+Environment::find(const std::string &key) const {
+	return env.find(key);
+}
+
+std::map<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char>>, Value, std::less<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char>>>, std::allocator<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char>>, Value>>>::const_iterator
+Environment::end() const {
+	return env.end();
+}
+
+Value &Environment::operator[](const std::string &key) {
+	return env[key];
+}
+
+const Value &Environment::operator[](const std::string &key) const {
+	auto ret = env.find(key);
+	if (ret != env.end())return ret->second;
+	else throw CommandException("无法找到元素", key);
+}
+
+Value::Value() = default;
+
+Value::Value(std::nullptr_t value) : value(std::make_shared<ValueClass>()) {}
+
+Value::Value(void *value) : value(std::make_shared<ValueClass>(value)) {}
+
+Value::Value(long value) : value(std::make_shared<ValueClass>(value)) {}
+
+Value::Value(double value) : value(std::make_shared<ValueClass>(value)) {}
+
+Value::Value(const std::string &value) : value(std::make_shared<ValueClass>(value)) {}
+
+Value::Value(bool value) : value(std::make_shared<ValueClass>()) {}
+
+Value::Value(const char *value) : value(std::make_shared<ValueClass>(value)) {}
+
+Value::Value(const std::shared_ptr<struct Stack> &value)
+		: value(std::make_shared<ValueClass>(value)) {}
+
+void *Value::getP() const {
+	return value->getP();
+}
+
+long Value::getInt() const {
+	return value->getInt();
+}
+
+double Value::getDouble() const {
+	return value->getDouble();
+}
+
+const std::string &Value::getStr() const {
+	return value->getStr();
+}
+
+bool Value::getBool() const {
+	return value->getBool();
+}
+
+const struct Stack &Value::getStack() const {
+	return value->getStack();
+}
+
+struct Stack &Value::getStack() {
+	return value->getStack();
+}
+
+Value::Type Value::getType() const {
+	return value->getType();
+}
+
+Value &Value::operator=(const char *value1) {
+	value = std::make_shared<ValueClass>(value1);
+	return *this;
+}
+
+
+CommandException::CommandException() = default;
+
+CommandException::CommandException(const std::string &message) : message(new std::string(message)) {}
+
+CommandException::CommandException(const std::string &message, const std::string &where)
+		: message(new std::string(message)),
+		  where(new std::string(where)) {}
+
+CommandException::CommandException(const char *message, const char *where) {
+	if (message != nullptr)this->message = new std::string(message);
+	if (where != nullptr)this->where = new std::string(where);
+}
+
+CommandException::~CommandException() {
+	delete message;
+	delete where;
 }

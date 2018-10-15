@@ -14,175 +14,273 @@
 #include <functional>
 #include <memory>
 
-struct Command;
+/**
+ * 用于表示程序异常
+ */
+class CommandException;
 
+/**
+ * 用于表示一个值
+ */
+class Value;
+
+/**
+ * 用于表示一条命令，在CommandReader.h中定义
+ */
+struct Command;
+/**
+ * 用于表示一个堆栈，最大长度为128
+ */
+struct Stack;
+/**
+ * 用于表示当前程序的运行环境
+ * 用于存储变量和标准堆栈
+ * 标准堆栈应全局唯一
+ */
+struct Environment;
+/**
+ * 用于储存用户自定义函数
+ */
 extern std::map<std::string, std::vector<std::shared_ptr<Command>>> userFunc;
 
+/**
+ * 用户正在自定义的函数
+ * @return 函数名，未在自定义函数则返回nullptr
+ */
 char *definingUserFunc();
 
+/**
+ * 设置正在自定义的函数名
+ * 如果definingUserFunc不为nullptr则无效
+ */
 void setDefiningUserFunc(const char *);
 
+/**
+ * 结束自定义函数
+ * @param funcBody 函数体
+ */
 void userFuncDefineEnd(const std::vector<std::shared_ptr<Command>> &funcBody);
 
-enum Type {
-	Null,
-	Int,
-	Double,
-	String,
-	Bool,
-	Stack
+/**
+ * 用于表示解释器执行过程中的异常
+ */
+class CommandException : public std::exception {
+public:
+	/**
+	 * 默认构造函数
+	 */
+	CommandException();
+	
+	/**
+	 * @param message 错误信息
+	 */
+	explicit CommandException(const std::string &message);
+	
+	/**
+	 * @param message 错误信息
+	 * @param where 出错位置
+	 */
+	explicit CommandException(const std::string &message, const std::string &where);
+	
+	/**
+	 * @param message 错误信息
+	 * @param where 出错位置
+	 */
+	explicit CommandException(const char *message, const char *where = nullptr);
+	
+	/**
+	 * 析构函数
+	 */
+	~CommandException() override;
+	
+	/**
+	 * 错误信息
+	 */
+	std::string *message = nullptr;
+	/**
+	 * 出错位置
+	 */
+	std::string *where = nullptr;
 };
 
-struct Stack;
+/**
+ * 用于表示程序运行中的变量的值
+ * 不储存变量名
+ */
+class Value {
+public:
+	enum Type {
+		Null,
+		Int,
+		Double,
+		String,
+		Bool,
+		Stack
+	};
+	
+	Value();
+	
+	explicit Value(std::nullptr_t value);
+	
+	explicit Value(void *value);
+	
+	explicit Value(long value);
+	
+	explicit Value(double value);
+	
+	explicit Value(const std::string &value);
+	
+	explicit Value(bool value);
+	
+	explicit Value(const char *value);
+	
+	explicit Value(const std::shared_ptr<struct Stack> &value);
+	
+	void *getP() const;
+	
+	long getInt() const;
+	
+	double getDouble() const;
+	
+	const std::string &getStr() const;
+	
+	bool getBool() const;
+	
+	const struct Stack &getStack() const;
+	
+	struct Stack &getStack();
+	
+	Type getType() const;
+	
+	Value &operator=(const Value &value1);
+	
+	Value &operator=(const char *value1);
+	
+	std::string toString() const;
+	
+	const char *toCString() const;
 
-union Val {
-	Val();
+private:
+	union ValueUnion {
+		ValueUnion();
+		
+		ValueUnion(void *pVoid1) : pVoid(pVoid1) {}
+		
+		ValueUnion(long i) : i(i) {}
+		
+		ValueUnion(double d) : d(d) {}
+		
+		ValueUnion(const char *str) : str(str) {}
+		
+		ValueUnion(const std::string &str) : str(str) {}
+		
+		ValueUnion(bool b) : b(b) {}
+		
+		ValueUnion(const std::shared_ptr<struct Stack> &stack) : stack(stack) {}
+		
+		~ValueUnion();
+		
+		void *pVoid = nullptr;
+		long i;
+		double d;
+		std::string str;
+		bool b;
+		std::shared_ptr<struct Stack> stack;
+	};
 	
-	Val(const char *str);
+	class ValueClass {
+	public:
+		ValueClass();
+		
+		explicit ValueClass(std::nullptr_t value);
+		
+		explicit ValueClass(void *value);
+		
+		explicit ValueClass(long value);
+		
+		explicit ValueClass(double value);
+		
+		explicit ValueClass(const std::string &value);
+		
+		explicit ValueClass(bool value);
+		
+		explicit ValueClass(const char *value);
+		
+		explicit ValueClass(const std::shared_ptr<struct Stack> &value);
+		
+		void *getP() const;
+		
+		long getInt() const;
+		
+		double getDouble() const;
+		
+		const std::string &getStr() const;
+		
+		bool getBool() const;
+		
+		const struct Stack &getStack() const;
+		
+		struct Stack &getStack();
+		
+		Type getType() const;
+		
+		~ValueClass();
+		
+		const std::string &toString() const;
+		
+		const char *toCString() const;
 	
-	~Val();
+	private:
+		Type type{Null};
+		ValueUnion value;
+		std::string *str = new std::string();
+		bool *strFlag = new bool(false);
+	};
 	
-	void *pVoid = nullptr;
-	long i;
-	double d;
-	std::string str;
-	bool b;
-	std::shared_ptr<struct Stack> stack;
-};
-
-struct SmartPointer {
-	SmartPointer() = default;
-	
-	explicit SmartPointer(std::nullptr_t value) : value(std::make_shared<Val>()), type(Null) {
-		this->value->pVoid = value;
-	}
-	
-	explicit SmartPointer(void *value) : value(std::make_shared<Val>()), type(Null) {
-		this->value->pVoid = value;
-	}
-	
-	explicit SmartPointer(long value) : value(std::make_shared<Val>()), type(Int) {
-		this->value->i = value;
-	}
-	
-	explicit SmartPointer(double value) : value(std::make_shared<Val>()), type(Double) {
-		this->value->d = value;
-	}
-	
-	explicit SmartPointer(const std::string &value) : value(std::make_shared<Val>()), type(String) {
-		this->value->str = value;
-	}
-	
-	explicit SmartPointer(bool value) : value(std::make_shared<Val>()), type(Bool) {
-		this->value->b = value;
-	}
-	
-	explicit SmartPointer(const char *value) : value(std::make_shared<Val>(value)), type(String) {
-		this->value->str = std::string(value);
-	}
-	
-	explicit SmartPointer(std::shared_ptr<struct Stack> value)
-			: value(std::make_shared<Val>()), type(Stack) {
-		this->value->stack = std::move(value);
-	}
-	
-	~SmartPointer();
-	
-	std::shared_ptr<Val> value;
-	Type type{Null};
-};
-
-struct Value {
-	Value() : pointer(dft) {}
-	
-	explicit Value(long value) : pointer(std::make_shared<SmartPointer>(value)) {}
-	
-	explicit Value(double value) : pointer(std::make_shared<SmartPointer>(value)) {}
-	
-	explicit Value(const std::string &value) : pointer(std::make_shared<SmartPointer>(value)) {}
-	
-	explicit Value(bool value) : pointer(std::make_shared<SmartPointer>(value)) {}
-	
-	explicit Value(const char *value) : pointer(std::make_shared<SmartPointer>(value)) {}
-	
-	explicit Value(void *value) : pointer(std::make_shared<SmartPointer>(value)) {}
-	
-	Value(std::shared_ptr<struct Stack> shared_ptr) : pointer(std::make_shared<SmartPointer>(shared_ptr)) {}
-	
-	Value &operator=(const Value value1) {
-		pointer = value1.pointer;
-		return *this;
-	}
-	
-	std::shared_ptr<Val> &getValue() {
-		return pointer->value;
-	}
-	
-	std::shared_ptr<Val> getValue() const {
-		return pointer->value;
-	}
-	
-	Type &getType() {
-		return pointer->type;
-	}
-	
-	Type getType() const {
-		return pointer->type;
-	}
-	
-	static std::shared_ptr<SmartPointer> dft;
-	std::shared_ptr<SmartPointer> pointer;
+	std::shared_ptr<ValueClass> value;
 };
 
 struct Stack {
-	Value &operator[](int index) {
-		return value[top - index - 1];
-	}
+	Value &operator[](int index);
 	
-	Value operator[](int index) const {
-		return value[top - index - 1];
-	}
+	Value operator[](int index) const;
 	
-	void push(Value &value1) {
-		value[top++] = value1;
-	}
+	void push(Value &value1);
 	
-	Value *pop() {
-		if (top <= 0)return nullptr;
-		return value + --top;
-	}
+	Value *pop();
 	
-	Value *peek() {
-		if (top < 0)return nullptr;
-		return value + top;
-	}
+	Value *peek();
 	
+	size_t size();
+
+private:
 	Value value[128];
-	int top = 0;
+	size_t top = 0;
+	size_t stack_size;
 };
 
 struct Environment {
-	Environment() : stack(std::make_shared<struct Stack>()) { // NOLINT(modernize-use-equals-default)
-		env["@"] = Value(stack);
-	}
+	Environment();
 	
-	Environment(const Environment &env) : stack(env.stack) { // NOLINT(modernize-use-equals-default)
-		this->env["@"] = Value(stack);
-	}
+	Environment(const Environment &env);
 	
 	std::map<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char>>, Value, std::less<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char>>>, std::allocator<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char>>, Value>>>::const_iterator
-	find(const std::string &key) const {
-		return env.find(key);
-	}
+	find(const std::string &key) const;
 	
 	std::map<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char>>, Value, std::less<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char>>>, std::allocator<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char>>, Value>>>::const_iterator
-	end() const {
-		return env.end();
-	}
+	end() const;
 	
-	Value &operator[](const std::string &key) {
-		return env[key];
-	}
+	Value &operator[](const std::string &key);
+	
+	const Value &operator[](const std::string &key) const;
+	
+	Value getValue(char *str) const;
+	
+	Value getValue(const std::string &valueName) const;
+	
+	double getFloat(char *valueName) const;
+	
+	long getInt(char *valueName) const;
 	
 	std::shared_ptr<struct Stack> stack;
 	std::map<std::string, Value> env;
@@ -192,31 +290,6 @@ typedef std::map<const std::string, std::function<void(Environment &env, char *b
 
 extern FuncMap funcMap;
 
-class CommandException : public std::exception {
-public:
-	CommandException() = default;
-	
-	explicit CommandException(const std::string &message) : message(new std::string(message)) {}
-	
-	explicit CommandException(const std::string &message, const std::string &where)
-			: message(new std::string(message)),
-			  where(new std::string(where)) {}
-	
-	explicit CommandException(const char *message, const char *where = nullptr) {
-		if (message != nullptr)this->message = new std::string(message);
-		if (where != nullptr)this->where = new std::string(where);
-	}
-	
-	~CommandException() override {
-		delete message;
-		delete where;
-	}
-	
-	std::string *message = nullptr;
-	
-	std::string *where = nullptr;
-};
-
-void getValue(char *str, const Environment &env, Value &value);
+//void getValue(char *str, const Environment &env, Value &value);
 
 #endif //UNTITLED1_COMMANDS_H

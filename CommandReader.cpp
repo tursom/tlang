@@ -29,6 +29,10 @@ void runCommand(Environment &env, const char *command, char *args[128]) {
 		if (strcmp(command, "end") == 0) {
 			userFuncDefineEnd(funcBody);
 			funcBody = std::vector<std::shared_ptr<Command>>();
+		} else if (strcmp(command, "func") == 0) {
+			userFuncDefineEnd(funcBody);
+			funcBody = std::vector<std::shared_ptr<Command>>();
+			runCommand(env, command, args);
 		} else {
 			Command cmd(command, args);
 			funcBody.push_back(make_shared<Command>(cmd));
@@ -58,13 +62,15 @@ void runCommand(Environment &env, const char *command, char *args[128]) {
 							char *arg = args[j] + 2;
 							while (*arg != '=' && *++arg != 0);
 							if (*arg == '=')*arg++ = 0;
-							getValue(arg, env, value);
+							value = env.getValue(arg);
 							env[args[j] + 1] = value;
 						}
 							break;
 						case '#':
-							getValue(args[j], env, value);
+							value = env.getValue(args[j]);
 							env.stack->push(value);
+							break;
+						case '$':
 							break;
 						default:
 							env[toString(j + 1)] = Value(args[j]);
@@ -139,11 +145,66 @@ void run(Environment &env, char *commandLines) {
 void run(Environment &env) {
 	string command;
 	while (command != "exit") {
-		printf("%s>>>", definingUserFunc());
+		if (definingUserFunc() != nullptr)printf("%s>>>", definingUserFunc());
+		else printf(">>>");
 		getline(cin, command);
+		if (cin.eof()) {
+			printf("\n");
+			break;
+		}
 		char *cmd = (char *) malloc(command.size() + 1);
 		strcpy(cmd, command.c_str());
 		run(env, cmd);
 		free(cmd);
 	}
+}
+
+
+Command::Command() = default;
+
+Command::Command(const char *cmd, char *arg[128]) {
+	command = new char[strlen(cmd) + 1];
+	strcpy(command, cmd);
+	int i;
+	for (i = 0; arg[i] != nullptr; ++i) {
+		args[i] = new char[strlen(arg[i])];
+		strcpy(args[i], arg[i]);
+	}
+	args[i] = nullptr;
+}
+
+Command::Command(const Command &cmd) {
+	command = new char[strlen(cmd.command) + 1];
+	strcpy(command, cmd.command);
+	int i;
+	for (i = 0; cmd.args[i] != nullptr; ++i) {
+		args[i] = new char[strlen(cmd.args[i])];
+		strcpy(args[i], cmd.args[i]);
+	}
+	args[i] = nullptr;
+}
+
+Command::~Command() {
+	delete[] command;
+	for (int i = 0; args[i] != nullptr; ++i) {
+		delete[] args[i];
+	}
+	command = nullptr;
+	*args = {nullptr};
+}
+
+Command &Command::operator=(const Command &cmd) {
+	delete[] command;
+	for (int i = 0; args[i] != nullptr; ++i) {
+		delete[] args[i];
+	}
+	command = new char[strlen(cmd.command) + 1];
+	strcpy(command, cmd.command);
+	int i;
+	for (i = 0; cmd.args[i] != nullptr; ++i) {
+		args[i] = new char[strlen(cmd.args[i])];
+		strcpy(args[i], cmd.args[i]);
+	}
+	args[i] = nullptr;
+	return *this;
 }
